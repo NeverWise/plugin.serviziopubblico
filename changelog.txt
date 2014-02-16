@@ -1,2 +1,6 @@
+[B]Version 1.0.1[/B]
+- Updated the addon to the contents of the new site.
+- Added section "Gli inviati".
+
 [B]Version 1.0.0[/B]
 - Initial version.
