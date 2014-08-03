@@ -1,149 +1,144 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import sys, re, xbmcgui, xbmcplugin#, datetime
+import sys, re, xbmcgui#, datetime
 from neverwise import Util
 
 
-class ServizioPubblico:
+class ServizioPubblico(object):
 
-  __handle = int(sys.argv[1])
-  __params = Util.urlParametersToDict(sys.argv[2])
-  __idPlugin = 'plugin.serviziopubblico'
-  __namePlugin = 'Servizio Pubblico'
-  __itemsNumber = 0
+  _handle = int(sys.argv[1])
+  _params = Util.urlParametersToDict(sys.argv[2])
 
   def __init__(self):
 
     # Visualizzazione del menu.
-    if len(self.__params) == 0:
+    if len(self._params) == 0:
       categs = []
-      categs.append(['Santoro', 'r', self.__GetSPPage('/canali/santoro')])
-      categs.append(['Vauro', 'r', self.__GetSPPage('/canali/vauro')])
-      categs.append(['Travaglio', 'r', self.__GetSPPage('/canali/travaglio')])
-      categs.append(['Dragoni', 'r', self.__GetSPPage('/canali/dragoni')])
-      categs.append(['Puntate', 'e', self.__GetSPPage('/puntate')])
-      categs.append(['Argomenti', 't', self.__GetSPPage('/argomenti')])
-      categs.append(['Gli inviati', 'n', self.__GetSPPage('/gli-inviati')])
+      categs.append(['Santoro', 'r', '/canali/santoro'])
+      categs.append(['Vauro', 'r', '/canali/vauro'])
+      categs.append(['Travaglio', 'r', '/canali/travaglio'])
+      categs.append(['Dragoni', 'r', '/canali/dragoni'])
+      categs.append(['Puntate', 'e', '/puntate'])
+      categs.append(['Argomenti', 't', '/argomenti'])
+      categs.append(['Gli inviati', 'n', '/gli-inviati'])
+      items = []
       for title, paramId, page in categs:
-        Util.addItem(self.__handle, title, '', '', 'video', { 'title' : title }, None, { 'id' : paramId, 'page' : page }, True)
-        self.__itemsNumber += 1
+        li = Util.createListItem(title, streamtype = 'video', infolabels = { 'title' : title })
+        items.append([{ 'id' : paramId, 'page' : page }, li, True, True])
+      Util.addItems(self._handle, items)
     else:
-      util = Util(self.__params['page'])
-      if not util.hasErrors():
+      util = Util(self._createPage(self._params['page']))
+      if not util._responseError:
 
         # Archivi (santoro, vauro, travaglio, dragoni e argomenti).
-        if self.__params['id'] == 'i':
-          self.__showArchiveList(util.getBSHtml(), self.__params['id'])
+        if self._params['id'] == 'i':
+          self._showArchiveList(util.getBSHtml(), self._params['id'])
 
         # Puntate.
-        elif self.__params['id'] == 'e':
+        elif self._params['id'] == 'e':
           response = util.getBSHtml().find('div', 'col-xs-8 right-border')
-          self.__showList(response.renderContents(), self.__params['id'])
+          self._showList(response.renderContents(), self._params['id'])
 
         # Argomenti.
-        elif self.__params['id'] == 't':
+        elif self._params['id'] == 't':
           response = util.getHtml()
           categs = re.compile('<div class="col-xs-12 single-argomento"> <a href="(.+?)" title="(.+?)".+?<img.+?src="(.+?)".+?<div class="post-content">(.+?)</div>').findall(response)
+          items = []
           for link, title, img, descr in categs:
             title = Util.normalizeText(title)
             if title.lower().find('fatto quotidiano') == -1:
-              Util.addItem(self.__handle, title, self.__normalizeImage(img), '', 'video', { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(descr)) }, None, { 'id' : 'r', 'page' : self.__createPage(link) }, True)
-            self.__itemsNumber += 1
-          self.__showNextPage(response, self.__params['id'])
+              li = Util.createListItem(title, thumbnailImage = self._normalizeImage(img), streamtype = 'video', infolabels = { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(descr)) })
+              items.append([{ 'id' : 'r', 'page' : link }, li, True, True])
+          self._showNextPage(response, self._params['id'], items)
+          Util.addItems(self._handle, items)
 
         # Gli inviati.
-        elif self.__params['id'] == 'n':
+        elif self._params['id'] == 'n':
           response = re.compile('<div class="post-[0-9]+ persone.+?">.+?<a href="(.+?)" title="(.+?)"> <img.+?src="(.+?)"').findall(util.getHtml())
+          items = []
           for link, title, img in response:
             title = Util.normalizeText(title)
-            Util.addItem(self.__handle, title, self.__normalizeImage(img), '', 'video', { 'title' : title }, None, { 'id' : 'e', 'page' : self.__createPage(link) }, True)
-            self.__itemsNumber += 1
+            li = Util.createListItem(title, thumbnailImage = self._normalizeImage(img), streamtype = 'video', infolabels = { 'title' : title })
+            items.append([{ 'id' : 'e', 'page' : link }, li, True, True])
+          Util.addItems(self._handle, items)
 
         # Ricerca categID.
-        elif self.__params['id'] == 'r':
+        elif self._params['id'] == 'r':
           categid = re.compile('\?cat_id=([0-9]+)"').findall(util.getHtml())[0]
-          response = Util(self.__createCategPage(categid)).getBSHtmlDialog(self.__namePlugin)
+          link = self._GetSPPage('/?p=15546&cat_id={0}'.format(categid))
+          if categid == '2': # Per evitare di mangiarsi un video adotto questo barbatrucco.
+            link = self._GetSPPage('/?p=15526&cat_id=2')
+          response = Util(link).getBSHtml(True)
           if response != None:
-            self.__showArchiveList(response, 'i')
+            self._showArchiveList(response, 'i')
 
         # Riproduzione del video.
-        elif self.__params['id'] == 'v':
+        elif self._params['id'] == 'v':
           urlParam = re.compile('<div class="meride-video-container" data-embed="(.+?)" data-customer="(.+?)" data-nfs="(.+?)"').findall(util.getHtml())
           if len(urlParam) > 0:
             urlParam = urlParam[0]
             tide = re.compile('<h3 class="entry-title">(.+?)</h3>.+?<p>(.+?)</p>').findall(util.getHtml())[0]
-            response = Util('http://mediasp.meride.tv/embedproxy.php/{0}/folder1/{1}/desktop'.format(urlParam[1], urlParam[0])).getHtmlDialog(self.__namePlugin)
+            response = Util('http://mediasp.meride.tv/embedproxy.php/{0}/folder1/{1}/desktop'.format(urlParam[1], urlParam[0])).getHtml(True)
             if response != None:
               urls = re.compile('<video.+?<iphone><!\[CDATA\[(.+?)]]></iphone><mp4><!\[CDATA\[(.+?)]]></mp4><poster><!\[CDATA\[(.+?)]]></poster>').findall(response)[0]
               title = Util.normalizeText(tide[0])
-              li = Util.createListItem(title, urls[2], '', 'video', { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(tide[1])) })
               try:
-                xbmc.Player(xbmc.PLAYER_CORE_MPLAYER).play(urls[0], li)
+                Util.playStream(self._handle, title, urls[2], urls[0], 'video', { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(tide[1])) })
               except:
-                xbmc.Player(xbmc.PLAYER_CORE_MPLAYER).play(urls[1], li)
+                Util.playStream(self._handle, title, urls[2], urls[1], 'video', { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(tide[1])) })
           else:
-            xbmcgui.Dialog().ok(self.__namePlugin, Util.getTranslation(self.__idPlugin, 30001)) # Messaggio d'errore "Video non disponibile".
+            Util.showVideoNotAvailableDialog()
       else:
-        Util.showConnectionErrorDialog(self.__namePlugin)
-
-    if self.__itemsNumber > 0:
-      xbmcplugin.endOfDirectory(self.__handle)
+        Util.showConnectionErrorDialog()
 
 
-  def __GetSPPage(self, link):
+  def _GetSPPage(self, link):
     return 'http://www.serviziopubblico.it{0}'.format(link)
 
 
-  def __createCategPage(self, idCateg):
-    if idCateg == '2': # Per evitare di mangiarsi un video adotto questo barbatrucco.
-      return self.__GetSPPage('/?p=15526&cat_id=2')
-    else:
-      return self.__GetSPPage('/?p=15546&cat_id={0}'.format(idCateg))
-
-
-  def __createPage(self, link):
+  def _createPage(self, link):
     if link[0:1] == '/':
-      return self.__GetSPPage(link)
+      return self._GetSPPage(link)
     else:
-      return self.__GetSPPage('/{0}'.format(link))
+      return self._GetSPPage('/{0}'.format(link))
 
 
-  def __normalizeImage(self, image):
+  def _normalizeImage(self, image):
     subImg = image[image.rfind('-'):image.rfind('.')]
-    result = self.__createPage(image.replace(subImg, ''))
+    result = self._createPage(image.replace(subImg, ''))
     if re.match('[0-9]+x[0-9]+', subImg) == None:
-      result = self.__createPage(image)
+      result = self._createPage(image)
     return result
 
 
-  def __showNextPage(self, html, urlId):
-    if self.__itemsNumber > 0:
-      nextPage = re.compile('<span class="current">.+?href="(.+?)".+?([0-9]+)</a>').findall(html)
-      if len(nextPage) > 0:
-        pageNum = Util.normalizeText(nextPage[0][1])
-        Util.AddItemPage(self.__handle, pageNum, '', '', { 'title' : pageNum }, { 'id' : urlId, 'page' : self.__createPage(Util.normalizeText(nextPage[0][0])) })
+  def _showNextPage(self, html, urlId, items):
+    nextPage = re.compile('<span class="current">.+?href="(.+?)".+?([0-9]+)</a>').findall(html)
+    if len(nextPage) > 0:
+      items.append([{ 'id' : urlId, 'page' : Util.normalizeText(nextPage[0][0]) }, Util.createItemPage(Util.normalizeText(nextPage[0][1])), True, True])
 
 
-  def __showList(self, html, urlId):
+  def _showList(self, html, urlId):
     videos = re.compile('<div class="post-[0-9]+ (post|puntate).+?">.+?href="(.+?)" title="(.+?)".+?<img.+?src="(.+?)".+?</h4></a>(.+?)</div>.+?<div class="foot-post-loop">(.+?)<div class="social-share"').findall(html)
+    items = []
     for unuse, link, title, img, descr, media in videos:
       if media.strip() == '<div class="icon-post flaticon-facetime"></div>':
         title = Util.normalizeText(title)
-        Util.addItem(self.__handle, title, self.__normalizeImage(img), '', 'video', { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(descr)) }, None, { 'id' : 'v', 'page' : self.__createPage(link) }, True)
-        self.__itemsNumber += 1
-    self.__showNextPage(html, urlId)
+        li = Util.createListItem(title, thumbnailImage = self._normalizeImage(img), streamtype = 'video', infolabels = { 'title' : title, 'plot' : Util.normalizeText(Util.trimTags(descr)) }, isPlayable = True)
+        items.append([{ 'id' : 'v', 'page' : link }, li, False, True])
+    self._showNextPage(html, urlId, items)
+    Util.addItems(self._handle, items)
 
 
-  def __showArchiveList(self, html, urlId):
+  def _showArchiveList(self, html, urlId):
     seeMore = html.find('div', 'see-more-container')
     html = html.find('div', 'col-xs-8 right-border').renderContents()
     if seeMore != None:
       html = html.replace(seeMore.renderContents(), '')
-    self.__showList(html, urlId)
+    self._showList(html, urlId)
 
 
 # Entry point.
 #startTime = datetime.datetime.now()
 sp = ServizioPubblico()
 del sp
-#print '{0} azione {1}'.format(self.__namePlugin, str(datetime.datetime.now() - startTime))
+#print '{0} azione {1}'.format(Util._addonName, str(datetime.datetime.now() - startTime))
