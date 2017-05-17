@@ -1,3 +1,8 @@
+[B]Version 1.0.7[/B]
+- Replaced dialog boxes with notifications.
+- General addon improvement.
+- Added the ability to download videos through ffmpeg.
+
 [B]Version 1.0.6[/B]
 - Fixed some minor bugs.
 - Updated to the new neverwise library.

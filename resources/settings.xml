@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<settings>
+  <setting id="ffmpeg_path" type="file" label="30000" value=""/>
+  <setting id="download_path" type="folder" label="30001" value=""/>
+</settings>
